@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>邀请</title>
+    <style>
+      :root {
+        --bg: #0f172a;
+        --panel: #1e293b;
+        --line: #334155;
+        --text: #e2e8f0;
+        --muted: #94a3b8;
+        --accent: #38bdf8;
+        --ok: #0ea5e9;
+        --danger: #f87171;
+      }
+      * { box-sizing: border-box; }
+      html, body {
+        margin: 0;
+        height: 100%;
+        font-family: 'Segoe UI', system-ui, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        font-size: 13px;
+      }
+      body {
+        display: flex;
+        align-items: stretch;
+        justify-content: center;
+        padding: 18px;
+      }
+      .card {
+        width: 100%;
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 18px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      h1 { margin: 0; font-size: 17px; }
+      .lead { margin: 0; line-height: 1.55; font-size: 14px; }
+      .lead strong { color: var(--accent); }
+      .box {
+        border: 1px solid rgba(251, 191, 36, 0.35);
+        background: rgba(251, 191, 36, 0.08);
+        border-radius: 8px;
+        padding: 10px 12px;
+        color: #fde68a;
+        line-height: 1.55;
+        font-size: 12.5px;
+      }
+      .meta { color: var(--muted); font-size: 12px; line-height: 1.5; }
+      .actions { display: flex; gap: 10px; margin-top: auto; }
+      button {
+        flex: 1;
+        border-radius: 8px;
+        padding: 11px 12px;
+        font: inherit;
+        font-weight: 600;
+        cursor: pointer;
+        border: 1px solid var(--line);
+      }
+      button:disabled { opacity: 0.5; cursor: not-allowed; }
+      .accept { background: var(--ok); border-color: #0284c7; color: #fff; }
+      .reject { background: #0b1220; color: var(--danger); }
+      .hint { margin: 0; color: var(--muted); font-size: 11px; text-align: center; }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1 id="title">入群邀请</h1>
+      <p class="lead" id="lead">
+        <strong id="from">—</strong> 邀请你加入群
+        <strong id="gname">—</strong>
+      </p>
+      <div class="box" id="box">
+        若点击「同意加入」，你将加入该群并接收群内聊天消息（局域网去中心化，无公网服务器）。
+        不同意则不会加入，也无法看到该群消息。
+      </div>
+      <p class="meta" id="meta">—</p>
+      <div class="actions">
+        <button type="button" class="reject" id="btn-reject">不同意</button>
+        <button type="button" class="accept" id="btn-accept">同意加入</button>
+      </div>
+      <p class="hint">请明确选择后才会关闭本窗口</p>
+    </div>
+    <script>
+      const api = window.meshInvite;
+      let busy = false;
+
+      function fill(inv) {
+        const from = inv?.fromName || inv?.fromId || '某人';
+        const gname = inv?.groupName || '未命名群';
+        const isDm = inv?.kind === 'dm' || String(inv?.groupId || '').startsWith('dm-');
+        document.getElementById('title').textContent = isDm ? '私聊请求' : '入群邀请';
+        document.getElementById('from').textContent = from;
+        document.getElementById('gname').textContent = isDm ? '私聊' : gname;
+        document.getElementById('lead').textContent = '';
+        const lead = document.getElementById('lead');
+        const sFrom = document.createElement('strong');
+        sFrom.id = 'from';
+        sFrom.textContent = from;
+        lead.appendChild(sFrom);
+        if (isDm) {
+          lead.appendChild(document.createTextNode(' 想和你开始私聊'));
+        } else {
+          lead.appendChild(document.createTextNode(' 邀请你加入群 '));
+          const sG = document.createElement('strong');
+          sG.id = 'gname';
+          sG.textContent = gname;
+          lead.appendChild(sG);
+        }
+        document.getElementById('box').textContent = isDm
+          ? '同意后将建立点对点私聊，消息仅双方可见。拒绝则不会创建会话。'
+          : '若点击「同意加入」，你将加入该群并接收群内聊天消息（局域网去中心化，无公网服务器）。不同意则不会加入，也无法看到该群消息。';
+        document.getElementById('btn-accept').textContent = isDm ? '同意私聊' : '同意加入';
+        document.getElementById('meta').textContent =
+          `来自 ${inv?.fromHost || '—'} · id ${(inv?.groupId || '').slice(0, 10)}…`;
+      }
+
+      async function respond(accepted) {
+        if (busy) return;
+        busy = true;
+        document.getElementById('btn-accept').disabled = true;
+        document.getElementById('btn-reject').disabled = true;
+        try {
+          await api.respond(accepted);
+        } catch (e) {
+          busy = false;
+          document.getElementById('btn-accept').disabled = false;
+          document.getElementById('btn-reject').disabled = false;
+          alert(e.message || String(e));
+        }
+      }
+
+      document.getElementById('btn-accept').onclick = () => respond(true);
+      document.getElementById('btn-reject').onclick = () => respond(false);
+
+      (async () => {
+        fill((await api.getInvite()) || {});
+      })();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,22 @@
+{
+  "name": "lan-mesh-chat",
+  "version": "0.1.0",
+  "description": "局域网去中心化群聊（无服务端）",
+  "main": "src/main.mjs",
+  "type": "module",
+  "author": "LAN Mesh Chat",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron .",
+    "dev:alt": "electron . --user-data-dir=./.user-data-alt --mesh-offset=10",
+    "dist": "node scripts/build.mjs default",
+    "dist:alt": "node scripts/build.mjs alt",
+    "dist:all": "node scripts/build.mjs all"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8",
+    "pngjs": "^7.0.0",
+    "to-ico": "^1.1.5"
+  }
+}

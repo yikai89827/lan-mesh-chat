@@ -1,0 +1,1026 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>LAN Mesh Chat</title>
+    <style>
+      :root {
+        --bg: #0f172a;
+        --panel: #1e293b;
+        --line: #334155;
+        --text: #e2e8f0;
+        --muted: #94a3b8;
+        --accent: #38bdf8;
+        --ok: #4ade80;
+        --danger: #f87171;
+        --me: #0ea5e9;
+      }
+      * { box-sizing: border-box; }
+      html, body {
+        margin: 0;
+        height: 100%;
+        font-family: 'Segoe UI', system-ui, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        font-size: 13px;
+      }
+      /* 暗色细滚动条，贴合界面 */
+      * {
+        scrollbar-width: thin;
+        scrollbar-color: #475569 transparent;
+      }
+      *::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      *::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      *::-webkit-scrollbar-thumb {
+        background: #475569;
+        border-radius: 999px;
+        border: 2px solid transparent;
+        background-clip: padding-box;
+      }
+      *::-webkit-scrollbar-thumb:hover {
+        background: #64748b;
+        border: 2px solid transparent;
+        background-clip: padding-box;
+      }
+      *::-webkit-scrollbar-corner {
+        background: transparent;
+      }
+      .app {
+        display: grid;
+        grid-template-columns: 300px 1fr;
+        height: 100%;
+      }
+      .side {
+        border-right: 1px solid var(--line);
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        background: #0b1220;
+      }
+      .side-h {
+        padding: 12px 14px 10px;
+        border-bottom: 1px solid var(--line);
+        flex: 0 0 auto;
+      }
+      .side-h h1 {
+        margin: 0;
+        font-size: 16px;
+      }
+      .brand-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+      }
+      .muted { color: var(--muted); }
+      .mono { font-family: ui-monospace, Consolas, monospace; font-size: 11px; }
+      .field { margin-top: 8px; }
+      label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+      input, textarea {
+        width: 100%;
+        border: 1px solid var(--line);
+        background: #0f172a;
+        color: var(--text);
+        border-radius: 6px;
+        padding: 8px 10px;
+        font: inherit;
+      }
+      button {
+        border: 1px solid var(--line);
+        background: #0f172a;
+        color: var(--text);
+        border-radius: 6px;
+        padding: 7px 10px;
+        cursor: pointer;
+        font: inherit;
+      }
+      button.primary { background: #0ea5e9; border-color: #0284c7; color: #fff; }
+      button.ghost { padding: 4px 8px; font-size: 11px; }
+      button.fold {
+        padding: 2px 8px;
+        font-size: 11px;
+        color: var(--muted);
+        background: transparent;
+      }
+      button:disabled { opacity: 0.45; cursor: not-allowed; }
+      .row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-top: 8px; }
+      .err { color: var(--danger); margin-top: 6px; }
+      .ok { color: var(--ok); margin-top: 6px; }
+      .foldable.collapsed .fold-body { display: none; }
+      .sec {
+        padding: 10px 14px;
+        border-bottom: 1px solid var(--line);
+        min-height: 0;
+        overflow: auto;
+      }
+      .sec.neighbors { flex: 0 0 auto; max-height: 38%; }
+      .sec.sessions { flex: 1; }
+      .sec.neighbors.collapsed { max-height: none; }
+      .sec-h {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        margin-bottom: 8px;
+      }
+      .sec-h h2 {
+        margin: 0;
+        font-size: 12px;
+        color: var(--muted);
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+      .item {
+        padding: 8px 10px;
+        border-radius: 8px;
+        cursor: pointer;
+        border: 1px solid transparent;
+        margin-bottom: 4px;
+        position: relative;
+      }
+      .item:hover { background: rgba(56, 189, 248, 0.08); }
+      .item.active {
+        background: rgba(14, 165, 233, 0.15);
+        border-color: rgba(14, 165, 233, 0.35);
+      }
+      .item .t {
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding-right: 28px;
+      }
+      .item .s { font-size: 11px; color: var(--muted); margin-top: 2px; }
+      .item .actions { margin-top: 6px; }
+      .unread {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        min-width: 18px;
+        height: 18px;
+        padding: 0 5px;
+        border-radius: 999px;
+        background: #ef4444;
+        color: #fff;
+        font-size: 10px;
+        font-weight: 700;
+        line-height: 18px;
+        text-align: center;
+      }
+      .main {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        min-height: 0;
+      }
+      .main-h {
+        padding: 12px 16px;
+        border-bottom: 1px solid var(--line);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+      }
+      .msgs {
+        flex: 1;
+        overflow: auto;
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .bubble {
+        max-width: 70%;
+        padding: 8px 12px;
+        border-radius: 12px;
+        background: var(--panel);
+        border: 1px solid var(--line);
+        align-self: flex-start;
+      }
+      .bubble.me {
+        align-self: flex-end;
+        background: rgba(14, 165, 233, 0.2);
+        border-color: rgba(14, 165, 233, 0.35);
+      }
+      .bubble .who { font-size: 11px; color: var(--accent); margin-bottom: 4px; }
+      .bubble .when { font-size: 10px; color: var(--muted); margin-top: 4px; }
+      .bubble img.chat-img {
+        display: block;
+        max-width: min(320px, 100%);
+        max-height: 280px;
+        border-radius: 8px;
+        cursor: zoom-in;
+        margin-top: 4px;
+        background: #0b1220;
+        object-fit: contain;
+      }
+      .file-card {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 10px;
+        border-radius: 8px;
+        background: rgba(15, 23, 42, 0.55);
+        border: 1px solid var(--line);
+        margin-top: 4px;
+      }
+      .file-card .fn { font-weight: 600; word-break: break-all; }
+      .file-card .fs { font-size: 11px; color: var(--muted); }
+      .ctx-menu {
+        position: fixed;
+        z-index: 50;
+        min-width: 160px;
+        padding: 4px;
+        background: #1e293b;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        box-shadow: 0 8px 24px rgba(0,0,0,.45);
+        display: none;
+      }
+      .ctx-menu.show { display: block; }
+      .ctx-menu button {
+        display: block;
+        width: 100%;
+        text-align: left;
+        border: none;
+        background: transparent;
+        border-radius: 6px;
+        padding: 8px 10px;
+        color: var(--text);
+        font: inherit;
+        cursor: pointer;
+      }
+      .ctx-menu button:hover {
+        background: rgba(56, 189, 248, 0.12);
+        color: var(--accent);
+      }
+      .ctx-menu button:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+      }
+      .fwd-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 6px;
+        border-radius: 6px;
+        cursor: pointer;
+      }
+      .fwd-item:hover { background: rgba(56, 189, 248, 0.08); }
+      .fwd-item input { width: auto; }
+      .composer {
+        border-top: 1px solid var(--line);
+        padding: 12px 16px;
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+      .composer input { flex: 1; }
+      .empty {
+        margin: auto;
+        color: var(--muted);
+        text-align: center;
+        line-height: 1.6;
+      }
+      .badge {
+        display: inline-block;
+        font-size: 10px;
+        padding: 1px 6px;
+        border-radius: 999px;
+        border: 1px solid var(--line);
+        color: var(--muted);
+      }
+      .badge.dm {
+        color: #fbbf24;
+        border-color: rgba(251, 191, 36, 0.45);
+      }
+      .modal-bg {
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,.55);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 20;
+      }
+      .modal-bg.show { display: flex; }
+      .modal {
+        width: 420px;
+        max-width: 92vw;
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 16px;
+      }
+      .modal h3 { margin: 0 0 10px; }
+      .check {
+        display: flex;
+        gap: 8px;
+        align-items: flex-start;
+        padding: 6px 0;
+      }
+      .check input { width: auto; margin-top: 3px; }
+      .lightbox {
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,.82);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 40;
+        padding: 24px;
+        cursor: zoom-out;
+      }
+      .lightbox.show { display: flex; }
+      .lightbox img {
+        max-width: 96vw;
+        max-height: 92vh;
+        border-radius: 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <aside class="side">
+        <div class="side-h foldable" id="sec-identity">
+          <div class="brand-row">
+            <h1 id="app-title">LAN Mesh Chat</h1>
+            <button type="button" class="fold" id="btn-fold-identity" title="折叠/展开">收起</button>
+          </div>
+          <div class="muted mono" id="ports">—</div>
+          <div class="fold-body">
+            <div class="field">
+              <label>花名</label>
+              <input id="name" maxlength="40" placeholder="如 张三" />
+            </div>
+            <div class="row">
+              <button class="primary" type="button" id="btn-save">保存身份</button>
+              <span class="muted mono" id="clientId"></span>
+            </div>
+            <p class="err" id="id-err"></p>
+            <p class="ok" id="id-ok"></p>
+          </div>
+        </div>
+
+        <div class="sec neighbors foldable" id="sec-neighbors">
+          <div class="sec-h">
+            <h2>邻居</h2>
+            <button type="button" class="fold" id="btn-fold-neighbors" title="折叠/展开">收起</button>
+          </div>
+          <div class="fold-body">
+            <div class="field">
+              <label>额外 HTTP 端口（本机双实例填 17911）</label>
+              <input id="extraPorts" placeholder="17911" />
+            </div>
+            <div class="row">
+              <button class="primary" type="button" id="btn-scan">扫描局域网</button>
+              <span class="muted" id="scan-hint"></span>
+            </div>
+            <p class="err" id="scan-err"></p>
+            <div id="peers"></div>
+          </div>
+        </div>
+
+        <div class="sec sessions">
+          <div class="sec-h">
+            <h2>会话</h2>
+          </div>
+          <div class="row" style="margin-top: 0; margin-bottom: 8px">
+            <button class="primary" type="button" id="btn-new-group">新建群</button>
+            <button type="button" id="btn-invite" disabled>邀请入群</button>
+          </div>
+          <div id="groups"></div>
+        </div>
+      </aside>
+
+      <main class="main">
+        <div class="main-h">
+          <div>
+            <div id="chat-title">选择会话开始聊天</div>
+            <div class="muted" id="chat-sub">去中心化 · 私聊 / 群聊 · 文件与图片</div>
+          </div>
+          <div class="muted" id="mesh-status">mesh —</div>
+        </div>
+        <div class="msgs" id="msgs">
+          <div class="empty">左侧选择私聊邻居，或创建一个群</div>
+        </div>
+        <div class="composer">
+          <button type="button" id="btn-img" disabled title="发送图片">图片</button>
+          <button type="button" id="btn-file" disabled title="发送文件">文件</button>
+          <input id="msg-input" placeholder="输入消息，Enter 发送；可粘贴图片" disabled />
+          <button class="primary" type="button" id="btn-send" disabled>发送</button>
+        </div>
+      </main>
+    </div>
+
+    <div class="modal-bg" id="modal">
+      <div class="modal">
+        <h3 id="modal-title">新建群</h3>
+        <div class="field" id="modal-name-wrap">
+          <label>群名称</label>
+          <input id="modal-name" maxlength="40" placeholder="如 项目讨论" />
+        </div>
+        <div class="field">
+          <label>邀请邻居（需对方同意）</label>
+          <div id="modal-peers"></div>
+        </div>
+        <p class="muted" style="margin: 8px 0 0; font-size: 12px">
+          同意入群后，对方将接收本群消息。拒绝则不会加入。
+        </p>
+        <p class="err" id="modal-err"></p>
+        <p class="ok" id="modal-ok"></p>
+        <div class="row" style="justify-content: flex-end; margin-top: 12px">
+          <button type="button" id="modal-cancel">取消</button>
+          <button class="primary" type="button" id="modal-ok-btn">确定</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-bg" id="fwd-modal">
+      <div class="modal">
+        <h3>转发到</h3>
+        <p class="muted" id="fwd-preview" style="margin: 0 0 8px; font-size: 12px; word-break: break-all"></p>
+        <div id="fwd-targets" style="max-height: 280px; overflow: auto"></div>
+        <p class="err" id="fwd-err"></p>
+        <div class="row" style="justify-content: flex-end; margin-top: 12px">
+          <button type="button" id="fwd-cancel">取消</button>
+          <button class="primary" type="button" id="fwd-ok">转发</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="lightbox" id="lightbox">
+      <img id="lightbox-img" alt="预览" />
+    </div>
+
+    <div class="ctx-menu" id="ctx-menu" role="menu">
+      <button type="button" id="ctx-open" hidden>打开</button>
+      <button type="button" id="ctx-reveal" hidden>打开所在文件夹</button>
+      <button type="button" id="ctx-fwd" hidden>转发</button>
+    </div>
+
+    <script>
+      const api = window.meshApi;
+      let state = null;
+      let peers = [];
+      let activeGroupId = '';
+      let modalMode = 'create';
+      let myId = '';
+      const mediaUrlCache = new Map();
+      let saveOkTimer = null;
+      /** @type {object | null} */
+      let pendingForward = null;
+      /** msgId -> message，供气泡操作按钮使用 */
+      const msgById = new Map();
+
+      function $(id) { return document.getElementById(id); }
+      function escapeHtml(s) {
+        return String(s ?? '')
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;');
+      }
+      function fmtTs(ts) {
+        try { return new Date(ts).toLocaleString(); } catch { return String(ts); }
+      }
+      function fmtSize(n) {
+        const b = Number(n) || 0;
+        if (b < 1024) return `${b} B`;
+        if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} KB`;
+        return `${(b / (1024 * 1024)).toFixed(1)} MB`;
+      }
+      function isDm(g) {
+        return g?.kind === 'dm' || String(g?.id || '').startsWith('dm-');
+      }
+      function dmPeerName(g) {
+        const other = (g.members || []).find((m) => m.clientId !== myId);
+        return other?.name || other?.clientId?.slice(0, 8) || g.name || '私聊';
+      }
+
+      function setupFold(secId, btnId, key) {
+        const sec = $(secId);
+        const btn = $(btnId);
+        const saved = localStorage.getItem(key);
+        if (saved === '1') {
+          sec.classList.add('collapsed');
+          btn.textContent = '展开';
+        }
+        btn.onclick = () => {
+          const next = !sec.classList.contains('collapsed');
+          sec.classList.toggle('collapsed', next);
+          btn.textContent = next ? '展开' : '收起';
+          localStorage.setItem(key, next ? '1' : '0');
+        };
+      }
+
+      async function refresh() {
+        state = await api.getState();
+        myId = state.identity.clientId || '';
+        if (document.activeElement !== $('name')) {
+          $('name').value = state.identity.name || '';
+        }
+        $('clientId').textContent = myId ? `id ${myId.slice(0, 8)}` : '';
+        if (state.appTitle) {
+          $('app-title').textContent = state.appTitle;
+          document.title = state.appTitle;
+        }
+        $('ports').textContent = `HTTP ${state.ports.http} · WS ${state.ports.ws}` +
+          (state.localIps?.length ? ` · ${state.localIps[0]}` : '');
+        $('mesh-status').textContent = `mesh 已连 ${state.mesh?.count || 0} 节点`;
+        renderGroups();
+        if (activeGroupId) await loadMessages(activeGroupId);
+        const g = (state.groups || []).find((x) => x.id === activeGroupId);
+        $('btn-invite').disabled = !activeGroupId || isDm(g);
+      }
+
+      function renderPeers() {
+        if (!peers.length) {
+          $('peers').innerHTML = '<p class="muted">尚未发现邻居</p>';
+          return;
+        }
+        $('peers').innerHTML = peers.map((p) => `
+          <div class="item" data-peer="${escapeHtml(p.clientId)}">
+            <div class="t">${escapeHtml(p.name || '未命名')} <span class="badge">${escapeHtml(p.host)}:${p.httpPort || ''}</span></div>
+            <div class="s mono">${escapeHtml(p.clientId)}</div>
+            <div class="actions">
+              <button type="button" class="ghost primary" data-dm="${escapeHtml(p.clientId)}">私聊</button>
+            </div>
+          </div>
+        `).join('');
+        $('peers').querySelectorAll('[data-dm]').forEach((btn) => {
+          btn.onclick = async (e) => {
+            e.stopPropagation();
+            const id = btn.getAttribute('data-dm');
+            const peer = peers.find((x) => x.clientId === id);
+            if (!peer) return;
+            try {
+              const res = await api.openDm(peer);
+              activeGroupId = res.group?.id || '';
+              await refresh();
+              await loadMessages(activeGroupId);
+            } catch (err) {
+              alert(err.message || String(err));
+            }
+          };
+        });
+      }
+
+      function renderGroups() {
+        const groups = state?.groups || [];
+        const unread = state?.unread || {};
+        if (!groups.length) {
+          $('groups').innerHTML = '<p class="muted">还没有会话</p>';
+          return;
+        }
+        const sorted = [...groups].sort((a, b) => {
+          const ad = isDm(a) ? 0 : 1;
+          const bd = isDm(b) ? 0 : 1;
+          if (ad !== bd) return ad - bd;
+          return String(a.name).localeCompare(String(b.name), 'zh');
+        });
+        $('groups').innerHTML = sorted.map((g) => {
+          const title = isDm(g) ? dmPeerName(g) : g.name;
+          const sub = isDm(g) ? '私聊' : `${(g.members || []).length} 人`;
+          const n = g.id === activeGroupId ? 0 : (Number(unread[g.id]) || 0);
+          const badge = n > 0
+            ? `<span class="unread" title="未读 ${n}">${n > 99 ? '99+' : n}</span>`
+            : '';
+          return `
+          <div class="item ${g.id === activeGroupId ? 'active' : ''}" data-gid="${escapeHtml(g.id)}">
+            <div class="t">${escapeHtml(title)} ${isDm(g) ? '<span class="badge dm">私聊</span>' : ''}</div>
+            <div class="s">${escapeHtml(sub)}</div>
+            ${badge}
+          </div>`;
+        }).join('');
+        $('groups').querySelectorAll('[data-gid]').forEach((el) => {
+          el.onclick = async () => {
+            activeGroupId = el.getAttribute('data-gid');
+            renderGroups();
+            const g = (state.groups || []).find((x) => x.id === activeGroupId);
+            $('btn-invite').disabled = !g || isDm(g);
+            await loadMessages(activeGroupId);
+          };
+        });
+      }
+
+      async function resolveMediaUrl(mediaId) {
+        if (!mediaId) return null;
+        if (mediaUrlCache.has(mediaId)) return mediaUrlCache.get(mediaId);
+        const url = await api.mediaUrl(mediaId);
+        if (url) mediaUrlCache.set(mediaId, url);
+        return url;
+      }
+
+      async function loadMessages(groupId) {
+        const g = (state?.groups || []).find((x) => x.id === groupId);
+        if (g) {
+          $('chat-title').textContent = isDm(g) ? `与 ${dmPeerName(g)} 的私聊` : g.name;
+          $('chat-sub').textContent = isDm(g)
+            ? '点对点 · 消息仅双方可见'
+            : `成员 ${(g.members || []).map((m) => m.name || m.clientId.slice(0, 6)).join('、')}`;
+        } else {
+          $('chat-title').textContent = '会话';
+          $('chat-sub').textContent = '';
+        }
+        const enabled = !!g;
+        $('msg-input').disabled = !enabled;
+        $('btn-send').disabled = !enabled;
+        $('btn-img').disabled = !enabled;
+        $('btn-file').disabled = !enabled;
+
+        const list = await api.getMessages(groupId);
+        const box = $('msgs');
+
+        // 打开会话即标记已读（以最新消息时间为准）
+        const latest = list.length ? list[list.length - 1].ts : Date.now();
+        try {
+          state.unread = await api.markRead(groupId, latest) || {};
+          renderGroups();
+        } catch {
+          /* ignore */
+        }
+
+        if (!list.length) {
+          box.innerHTML = '<div class="empty">暂无消息，发一条打个招呼吧</div>';
+          return;
+        }
+
+        msgById.clear();
+        hideCtxMenu();
+        const parts = [];
+        for (const m of list) {
+          msgById.set(m.msgId, m);
+          const me = m.fromId === myId;
+          const canMedia = !!(m.mediaId && m.status !== 'failed' && m.status !== 'pending');
+          let body = '';
+          if (m.kind === 'image') {
+            if (canMedia) {
+              const url = await resolveMediaUrl(m.mediaId);
+              body = url
+                ? `<img class="chat-img" data-full="${escapeHtml(url)}" data-media="${escapeHtml(m.mediaId)}" src="${escapeHtml(url)}" alt="${escapeHtml(m.fileName || '图片')}" />`
+                : `<div class="muted">图片不可用 · ${escapeHtml(m.fileName || '')}</div>`;
+            } else if (m.status === 'pending') {
+              body = `<div class="muted">图片接收中… ${escapeHtml(m.fileName || '')}</div>`;
+            } else if (m.status === 'failed') {
+              body = `<div class="err">图片接收失败</div>`;
+            } else {
+              body = `<div class="muted">${escapeHtml(m.text || m.fileName || '图片')}</div>`;
+            }
+          } else if (m.kind === 'file') {
+            const status =
+              m.status === 'pending' ? '接收中…' :
+              m.status === 'failed' ? '失败' :
+              m.mediaId ? '已保存' : '';
+            body = `<div class="file-card">
+              <div>
+                <div class="fn">${escapeHtml(m.fileName || '文件')}</div>
+                <div class="fs">${fmtSize(m.size)}${status ? ' · ' + status : ''}</div>
+              </div>
+            </div>`;
+          } else {
+            body = `<div>${escapeHtml(m.text)}</div>`;
+          }
+          parts.push(`<div class="bubble ${me ? 'me' : ''}" data-msgid="${escapeHtml(m.msgId)}">
+            ${me ? '' : `<div class="who">${escapeHtml(m.fromName || m.fromId)}</div>`}
+            ${body}
+            <div class="when">${fmtTs(m.ts)}</div>
+          </div>`);
+        }
+        box.innerHTML = parts.join('');
+        box.querySelectorAll('img.chat-img').forEach((img) => {
+          img.onerror = async () => {
+            const mid = img.getAttribute('data-media');
+            if (!mid) return;
+            mediaUrlCache.delete(mid);
+            const again = await resolveMediaUrl(mid);
+            if (again && again !== img.src) {
+              img.src = again;
+              img.setAttribute('data-full', again);
+            } else {
+              img.replaceWith(Object.assign(document.createElement('div'), {
+                className: 'err',
+                textContent: '图片加载失败',
+              }));
+            }
+          };
+          img.onclick = () => {
+            $('lightbox-img').src = img.getAttribute('data-full') || img.src;
+            $('lightbox').classList.add('show');
+          };
+        });
+        box.querySelectorAll('.bubble[data-msgid]').forEach((el) => {
+          el.oncontextmenu = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const msg = msgById.get(el.getAttribute('data-msgid'));
+            if (msg) showCtxMenu(e.clientX, e.clientY, msg);
+          };
+        });
+        box.scrollTop = box.scrollHeight;
+      }
+
+      function hideCtxMenu() {
+        $('ctx-menu').classList.remove('show');
+        $('ctx-menu').dataset.msgId = '';
+      }
+
+      function showCtxMenu(x, y, msg) {
+        const menu = $('ctx-menu');
+        const canMedia = !!(msg.mediaId && msg.status !== 'failed' && msg.status !== 'pending');
+        const canFwd =
+          (msg.kind === 'text' && String(msg.text || '').trim()) ||
+          ((msg.kind === 'image' || msg.kind === 'file') && canMedia);
+        const showOpen = (msg.kind === 'image' || msg.kind === 'file') && canMedia;
+        $('ctx-open').hidden = !showOpen;
+        $('ctx-reveal').hidden = !showOpen;
+        $('ctx-fwd').hidden = !canFwd;
+        if ($('ctx-open').hidden && $('ctx-reveal').hidden && $('ctx-fwd').hidden) return;
+        menu.dataset.msgId = msg.msgId;
+        menu.classList.add('show');
+        const pad = 8;
+        const mw = menu.offsetWidth || 160;
+        const mh = menu.offsetHeight || 120;
+        const left = Math.min(x, window.innerWidth - mw - pad);
+        const top = Math.min(y, window.innerHeight - mh - pad);
+        menu.style.left = `${Math.max(pad, left)}px`;
+        menu.style.top = `${Math.max(pad, top)}px`;
+      }
+
+      function sessionTitle(g) {
+        return isDm(g) ? dmPeerName(g) : g.name;
+      }
+
+      function openForwardModal(msg) {
+        pendingForward = msg;
+        $('fwd-err').textContent = '';
+        if (msg.kind === 'image') {
+          $('fwd-preview').textContent = `图片：${msg.fileName || '图片'}`;
+        } else if (msg.kind === 'file') {
+          $('fwd-preview').textContent = `文件：${msg.fileName || '文件'}`;
+        } else {
+          const t = String(msg.text || '');
+          $('fwd-preview').textContent = t.length > 80 ? `${t.slice(0, 80)}…` : t;
+        }
+        const targets = (state?.groups || []).filter((g) => g.id !== activeGroupId);
+        if (!targets.length) {
+          $('fwd-targets').innerHTML = '<p class="muted">没有其他可转发的会话</p>';
+        } else {
+          $('fwd-targets').innerHTML = targets.map((g) => `
+            <label class="fwd-item">
+              <input type="radio" name="fwd-target" value="${escapeHtml(g.id)}" />
+              <span>
+                ${escapeHtml(sessionTitle(g))}
+                ${isDm(g) ? '<span class="badge dm">私聊</span>' : `<span class="muted"> · ${(g.members || []).length} 人</span>`}
+              </span>
+            </label>
+          `).join('');
+        }
+        $('fwd-modal').classList.add('show');
+      }
+
+      function openModal(mode) {
+        modalMode = mode;
+        $('modal-title').textContent = mode === 'create' ? '新建群' : '邀请入群';
+        $('modal-name-wrap').style.display = mode === 'create' ? 'block' : 'none';
+        $('modal-name').value = '';
+        $('modal-err').textContent = '';
+        $('modal-ok').textContent = '';
+        if (!peers.length) {
+          $('modal-peers').innerHTML = '<p class="muted">请先扫描邻居</p>';
+        } else {
+          const existing = new Set();
+          if (mode === 'invite' && activeGroupId) {
+            const g = (state.groups || []).find((x) => x.id === activeGroupId);
+            for (const m of g?.members || []) existing.add(m.clientId);
+          }
+          const list = peers.filter((p) => !existing.has(p.clientId));
+          if (!list.length) {
+            $('modal-peers').innerHTML = '<p class="muted">没有可邀请的邻居</p>';
+          } else {
+            $('modal-peers').innerHTML = list.map((p) => `
+              <label class="check">
+                <input type="checkbox" value="${escapeHtml(p.clientId)}" />
+                <span>${escapeHtml(p.name || '未命名')} <span class="mono muted">${escapeHtml(p.host)}</span></span>
+              </label>
+            `).join('');
+          }
+        }
+        $('modal').classList.add('show');
+      }
+
+      function selectedInvitees() {
+        const ids = [...$('modal-peers').querySelectorAll('input:checked')].map((x) => x.value);
+        return peers.filter((p) => ids.includes(p.clientId));
+      }
+
+      $('btn-save').onclick = async () => {
+        $('id-err').textContent = '';
+        $('id-ok').textContent = '';
+        try {
+          await api.setIdentity($('name').value);
+          await refresh();
+          $('id-ok').textContent = '已保存';
+          if (saveOkTimer) clearTimeout(saveOkTimer);
+          saveOkTimer = setTimeout(() => { $('id-ok').textContent = ''; }, 2500);
+        } catch (e) {
+          $('id-err').textContent = e.message || String(e);
+        }
+      };
+
+      $('btn-scan').onclick = async () => {
+        $('scan-err').textContent = '';
+        $('scan-hint').textContent = '扫描中…';
+        try {
+          const extra = String($('extraPorts').value || '')
+            .split(/[,，\s]+/)
+            .map((x) => Number(x.trim()))
+            .filter((n) => n > 0);
+          const res = await api.scan({ extraPorts: extra });
+          peers = res.peers || [];
+          $('scan-hint').textContent = `已扫 ${res.scanned}，发现 ${peers.length}`;
+          renderPeers();
+        } catch (e) {
+          $('scan-hint').textContent = '';
+          $('scan-err').textContent = e.message || String(e);
+        }
+      };
+
+      $('btn-new-group').onclick = () => openModal('create');
+      $('btn-invite').onclick = () => openModal('invite');
+      $('modal-cancel').onclick = () => $('modal').classList.remove('show');
+      $('ctx-open').onclick = async () => {
+        const msg = msgById.get($('ctx-menu').dataset.msgId);
+        hideCtxMenu();
+        if (!msg?.mediaId) return;
+        try { await api.openMedia(msg.mediaId); }
+        catch (e) { alert(e.message || String(e)); }
+      };
+      $('ctx-reveal').onclick = async () => {
+        const msg = msgById.get($('ctx-menu').dataset.msgId);
+        hideCtxMenu();
+        if (!msg?.mediaId) return;
+        try { await api.revealMedia(msg.mediaId); }
+        catch (e) { alert(e.message || String(e)); }
+      };
+      $('ctx-fwd').onclick = () => {
+        const msg = msgById.get($('ctx-menu').dataset.msgId);
+        hideCtxMenu();
+        if (msg) openForwardModal(msg);
+      };
+      document.addEventListener('click', () => hideCtxMenu());
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') hideCtxMenu();
+      });
+      window.addEventListener('blur', () => hideCtxMenu());
+      $('msgs').addEventListener('scroll', () => hideCtxMenu(), { passive: true });
+
+      $('fwd-cancel').onclick = () => {
+        pendingForward = null;
+        $('fwd-modal').classList.remove('show');
+      };
+      $('fwd-ok').onclick = async () => {
+        $('fwd-err').textContent = '';
+        if (!pendingForward) return;
+        const picked = $('fwd-targets').querySelector('input[name="fwd-target"]:checked');
+        if (!picked) {
+          $('fwd-err').textContent = '请选择目标会话';
+          return;
+        }
+        $('fwd-ok').disabled = true;
+        try {
+          await api.forwardMessage({
+            targetGroupId: picked.value,
+            message: pendingForward,
+          });
+          pendingForward = null;
+          $('fwd-modal').classList.remove('show');
+          await refresh();
+        } catch (e) {
+          $('fwd-err').textContent = e.message || String(e);
+        } finally {
+          $('fwd-ok').disabled = false;
+        }
+      };
+
+      $('modal-ok-btn').onclick = async () => {
+        $('modal-err').textContent = '';
+        $('modal-ok').textContent = '等待对方确认…';
+        $('modal-ok-btn').disabled = true;
+        try {
+          const invitees = selectedInvitees();
+          if (modalMode === 'create') {
+            const name = $('modal-name').value.trim();
+            if (!name) throw new Error('请填写群名称');
+            const res = await api.createGroup({ name, invitees });
+            activeGroupId = res.group?.id || '';
+            const fail = (res.results || []).filter((r) => !r.ok);
+            $('modal-ok').textContent = fail.length
+              ? `群已创建；部分邀请失败：${fail.map((f) => f.error).join('；')}`
+              : '群已创建' + (invitees.length ? '，邀请已完成' : '');
+          } else {
+            if (!activeGroupId) throw new Error('未选择群');
+            if (!invitees.length) throw new Error('请勾选邻居');
+            const res = await api.inviteToGroup({ groupId: activeGroupId, invitees });
+            const fail = (res.results || []).filter((r) => !r.ok);
+            $('modal-ok').textContent = fail.length
+              ? `完成；失败：${fail.map((f) => f.error).join('；')}`
+              : '邀请已完成';
+          }
+          await refresh();
+          setTimeout(() => {
+            $('modal').classList.remove('show');
+            $('modal-ok-btn').disabled = false;
+          }, 800);
+        } catch (e) {
+          $('modal-ok').textContent = '';
+          $('modal-err').textContent = e.message || String(e);
+          $('modal-ok-btn').disabled = false;
+        }
+      };
+
+      async function send() {
+        const text = $('msg-input').value.trim();
+        if (!text || !activeGroupId) return;
+        try {
+          await api.sendChat({ groupId: activeGroupId, text });
+          $('msg-input').value = '';
+          await loadMessages(activeGroupId);
+        } catch (e) {
+          alert(e.message || String(e));
+        }
+      }
+
+      async function pickFile(imagesOnly) {
+        if (!activeGroupId) return;
+        try {
+          const res = await api.pickAndSendFile({ groupId: activeGroupId, imagesOnly });
+          if (!res?.canceled) await loadMessages(activeGroupId);
+        } catch (e) {
+          alert(e.message || String(e));
+        }
+      }
+
+      $('btn-send').onclick = send;
+      $('btn-img').onclick = () => pickFile(true);
+      $('btn-file').onclick = () => pickFile(false);
+      $('msg-input').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          send();
+        }
+      });
+
+      document.addEventListener('paste', async (e) => {
+        if (!activeGroupId || $('msg-input').disabled) return;
+        const items = e.clipboardData?.items;
+        if (!items) return;
+        for (const item of items) {
+          if (!String(item.type || '').startsWith('image/')) continue;
+          e.preventDefault();
+          const file = item.getAsFile();
+          if (!file) return;
+          try {
+            const buf = await file.arrayBuffer();
+            const bytes = new Uint8Array(buf);
+            let binary = '';
+            const chunk = 0x8000;
+            for (let i = 0; i < bytes.length; i += chunk) {
+              binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+            }
+            const b64 = btoa(binary);
+            await api.sendPasteImage({
+              groupId: activeGroupId,
+              mime: file.type || 'image/png',
+              base64: b64,
+              fileName: file.name || `paste-${Date.now()}.png`,
+            });
+            await loadMessages(activeGroupId);
+          } catch (err) {
+            alert(err.message || String(err));
+          }
+          return;
+        }
+      });
+
+      $('lightbox').onclick = () => {
+        $('lightbox').classList.remove('show');
+        $('lightbox-img').src = '';
+      };
+
+      setupFold('sec-identity', 'btn-fold-identity', 'lan-mesh-fold-identity');
+      setupFold('sec-neighbors', 'btn-fold-neighbors', 'lan-mesh-fold-neighbors');
+
+      api.onChanged(() => { refresh(); });
+      $('extraPorts').value = '17911';
+      refresh();
+    </script>
+  </body>
+</html>
