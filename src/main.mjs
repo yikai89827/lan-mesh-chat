@@ -24,8 +24,6 @@ import {
   loadFlavor,
 } from './store.mjs';
 
-const FLAVOR = loadFlavor();
-const APP_TITLE = FLAVOR.label ? `LAN Mesh Chat (${FLAVOR.label})` : 'LAN Mesh Chat';const APP_ICON = path.join(__dirname, 'ui', 'icon.png');
 import { scanPeers, invitePeer, waitInviteDecision } from './discovery.mjs';
 import {
   startPeerHttp,
@@ -44,6 +42,9 @@ import {
 import { initFileTransfer, publishFile, openLocalMedia } from './file-transfer.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const FLAVOR = loadFlavor();
+const APP_TITLE = FLAVOR.label ? `LAN Mesh Chat (${FLAVOR.label})` : 'LAN Mesh Chat';
+const APP_ICON = path.join(__dirname, 'ui', 'icon.png');
 
 protocol.registerSchemesAsPrivileged([
   {
